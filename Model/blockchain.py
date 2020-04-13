@@ -1,6 +1,5 @@
 import hashlib
 import json
-from time import time
 from datetime import datetime
 from threading import Timer
 
@@ -9,6 +8,7 @@ from urllib.parse import urlparse
 from ordered_set import OrderedSet
 
 TIME_SLICE_SECONDS = 1.0
+TIME_NEW_BLOCK = 5
 
 
 class Blockchain(object):
@@ -19,13 +19,14 @@ class Blockchain(object):
         self.current_transactions = []
         self.chain = []
         # TODO: Change nodes for mining_nodes
-        self.nodes = set(node_identifier)
+        self.nodes = set()
+        self.nodes.add(node_identifier)
         # Reminder: we need to sort the mining_nodes to get the desired behaviour
         self.mining_nodes = OrderedSet(self.nodes)
 
         self.node_identifier = node_identifier
         # create genesis block
-        self.new_block(previous_hash=1, proof=100)
+        self.new_block(previous_hash=1)
         # start mining process
         print("GOING TO RUN")
         self.mining_task()
@@ -41,25 +42,28 @@ class Blockchain(object):
     def mining_task(self):
         time_in_seconds = int(datetime.now().timestamp())
         # TODO: We need to access the list of nodes thread safe
-        # if time_in_seconds % len(self.mining_nodes) == self.mining_nodes.index(self.node_identifier):
-        if True:
+        time_div = time_in_seconds//TIME_NEW_BLOCK
+
+        if time_in_seconds % TIME_NEW_BLOCK == 0 and\
+                time_div % len(self.mining_nodes) == self.mining_nodes.index(self.node_identifier):
             # TODO: Create the block correctly
-            print("MINING in second {}".format(time_in_seconds))
+            self.new_block(time_in_seconds)
+
         Timer(TIME_SLICE_SECONDS, self.mining_task).start()
 
-    def new_block(self, proof, previous_hash=None):
-        # Creates a new block and adds it to the bc
+    def new_block(self, block_time=int(datetime.now().timestamp()), previous_hash=None):
         """
         Creates a new block
-        :param proof: <int> The proof given by the Proof of Work algorithm
+        :param block_time: <int> Time when the block is done
         :param previous_hash: (Optional) <str> Hash of previous Block
         :return: <dict> New Block
         """
+
         block = {
-            'index': len(self.chain) + 1,  # chains lenght +1
-            'timestamp': time(),
+            'index': len(self.chain) + 1,
+            'timestamp': block_time,
             'transactions': self.current_transactions,
-            'proof': proof,
+            # 'proof': proof,
             'previous_hash': previous_hash or self.hash(self.chain[-1]),
         }
 
