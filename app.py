@@ -1,6 +1,6 @@
 from uuid import uuid4
 
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, json
 from Model.blockchain import Blockchain
 
 # Instantiate our node
@@ -63,13 +63,23 @@ def new_transaction():
     if not all(k in values for k in required):
         return 'Missing values', 400
 
-    # Creates new transactios
-    index = blockchain.new_transaction(
-        values['institution'], values['medic'],
-        values['patient'], values['operation']
-    )
+    required = ['institution', 'medic', 'patient', 'operation']
+    if not all(k in values for k in required):
+        return 'Missing values', 400
 
-    response = {'message': f'Transaction will be added to block {index}'}
+    # Creates new transactios
+    transaction = {
+        'dataop': 'transaction',
+        'data': {
+                'institution': values['institution'],
+                'medic': values['medic'],
+                'patient': values['patient'],
+                'operation': values['operation'],
+        }
+    }
+    json_encoded = json.dumps(transaction, ensure_ascii=False).encode('utf-8')
+    blockchain.send_broadcast(json_encoded)
+    response = {'message': f'Transaction succesfully commited'}
     return jsonify(response), 201
 
 
