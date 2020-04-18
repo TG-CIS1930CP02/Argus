@@ -42,6 +42,7 @@ class Blockchain(object):
         Adds a node to list of nodes
         :param node_public_key: <str> Address of new node
         """
+        # TODO: design and implement way to ask for the valid nodes
         # parsed_url = urlparse(address)
         self.mining_nodes.add(node_public_key)
         sorted(self.mining_nodes)
@@ -62,14 +63,15 @@ class Blockchain(object):
         Timer(TIME_SLICE_SECONDS, self.mining_task).start()
 
     def add_block(self, block):
-        self.chain.append(block.get('data'))
+        block = block.get('data')
+        self.chain.append(block)
+        self.current_transactions = [el for el in self.current_transactions if el not in block.get('transactions')]
 
     def listen_broadcast(self):
         listen_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
         listen_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         listen_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         listen_socket.bind(('', PORT))
-        # TODO: try to put in is json mode, catch if not possible, then check for operation and decide what to do
         while True:
             data, addr = listen_socket.recvfrom(4096)
             try:
@@ -112,11 +114,11 @@ class Blockchain(object):
         :param previous_hash: (Optional) <str> Hash of previous Block
         :return: <dict> New Block
         """
+        # TODO: SIGN BLOCK AND PUT META DATA WITH PRIVATE_KEY
         block = {
             'index': len(self.chain) + 1,
             'timestamp': block_time,
             'transactions': self.current_transactions,
-            # 'proof': proof,
             'previous_hash': previous_hash or self.hash(self.chain[-1]),
         }
         # Reset the current list of transactions
@@ -245,6 +247,7 @@ class Blockchain(object):
         :param: proof <int>
         :return: <bool> True if correct, False otherwhise
         """
+        # TODO: change it for veryfing tat the node that signs is a valid one, ak for nodes and verify
         guess = f'{last_proof}{proof}{last_hash}'.encode()
         guess_hash = hashlib.sha256(guess).hexdigest()
         return guess_hash[:2] == "00"

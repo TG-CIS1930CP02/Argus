@@ -6,7 +6,7 @@ from Model.blockchain import Blockchain
 # Instantiate our node
 app = Flask(__name__)
 
-
+# TODO: create public-private key value
 # Creates an unique address for the node
 node_identifier = str(uuid4()).replace('-', '')
 
@@ -17,7 +17,7 @@ blockchain = Blockchain(node_identifier)
 
 print("blockchain created succesfuly")
 
-
+"""
 @app.route('/nodes/register', methods=['POST'])
 def register_nodes():
     values = request.get_json()
@@ -34,6 +34,7 @@ def register_nodes():
         'total_nodes': list(blockchain.nodes),
     }
     return jsonify(response), 201
+"""
 
 
 @app.route('/nodes/resolve', methods=['GET'])
@@ -59,22 +60,26 @@ def new_transaction():
     values = request.get_json()
 
     # Check that the required fields are into the posted data
-    required = ['institution', 'medic', 'patient', 'operation']
+    # TODO : Create API guide
+    required = ['sender', 'sender_role', 'recipient', 'recipient_role', 'operation',
+                'timestamp', 'institution', 'resource_path', 'resource_integrity', 'resource_type']
+    required = sorted(required)
     if not all(k in values for k in required):
         return 'Missing values', 400
 
-    required = ['institution', 'medic', 'patient', 'operation']
-    if not all(k in values for k in required):
-        return 'Missing values', 400
-
-    # Creates new transactios
+    data = dict([(x, values[x]) for x in required])
+    tx_hash = Blockchain.hash(data)
+    # Creates new transaction
+    # TODO : Meta data
+    # TODO : encrypt tx_hash
     transaction = {
         'dataop': 'transaction',
         'data': {
-                'institution': values['institution'],
-                'medic': values['medic'],
-                'patient': values['patient'],
-                'operation': values['operation'],
+            'meta-data': {
+                'encrypted_hash': tx_hash,
+                'public_key': "",
+            },
+            'data': data
         }
     }
     json_encoded = json.dumps(transaction, ensure_ascii=False).encode('utf-8')
@@ -94,7 +99,6 @@ def full_chain():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
-
 
 # based on blockchain tutorial on python
 # available at https://github.com/dvf/blockchain/blob/master/blockchain.py
