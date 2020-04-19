@@ -1,4 +1,9 @@
-from uuid import uuid4
+from Crypto.PublicKey import ECC
+from Crypto.Signature import DSS
+from Crypto.Hash import SHA256
+import os.path
+
+import binascii
 
 from flask import Flask, jsonify, request, json
 from Model.blockchain import Blockchain
@@ -8,12 +13,25 @@ app = Flask(__name__)
 
 # TODO: create public-private key value
 # Creates an unique address for the node
-node_identifier = str(uuid4()).replace('-', '')
 
+if os.path.isfile('mykey.pem'):
+    # Import key
+    print("File exist")
+    f = open('mykey.pem', 'rt')
+    key_pair = ECC.import_key(f.read())
+else:
+    # Create key pair
+    print("File not exist")
+    key_pair = ECC.generate(curve='P-256')
+    f = open('mykey.pem', 'wt')
+    f.write(key_pair.export_key(format='PEM'))
+    f.close()
+
+pub_key = key_pair.public_key().export_key(format='OpenSSH')
 print("node identified")
 
 # Instantiate the blockchain
-blockchain = Blockchain(node_identifier)
+blockchain = Blockchain(key_pair)
 
 print("blockchain created succesfuly")
 
@@ -68,16 +86,18 @@ def new_transaction():
         return 'Missing values', 400
 
     data = dict([(x, values[x]) for x in required])
-    tx_hash = Blockchain.hash(data)
+    tx_hash = Blockchain.hash_object(data)
     # Creates new transaction
     # TODO : Meta data
     # TODO : encrypt tx_hash
+    signer = DSS.new(key_pair, 'fips-186-3')
+    signature = signer.sign(tx_hash)
     transaction = {
         'dataop': 'transaction',
         'data': {
-            'meta-data': {
-                'encrypted_hash': tx_hash,
-                'public_key': "",
+            'meta_data': {
+                'signed_hash': signature.hex(),
+                'public_key': pub_key,
             },
             'data': data
         }

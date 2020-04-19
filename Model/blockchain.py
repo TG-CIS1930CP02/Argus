@@ -1,9 +1,13 @@
-import hashlib
 import json
 from datetime import datetime
 from threading import Timer, Thread
 import socket
 from ordered_set import OrderedSet
+from Crypto.PublicKey import ECC
+from Crypto.Signature import DSS
+from Crypto.Hash import SHA256
+
+import binascii
 
 TIME_SLICE_SECONDS = 1.0
 TIME_NEW_BLOCK = 5
@@ -15,7 +19,7 @@ RAS_IP = None
 class Blockchain(object):
     print("creating class BC")
 
-    def __init__(self, node_identifier):
+    def __init__(self, key_pair):
         print("... Initializing constructor")
         self.current_transactions = []
         self.chain = []
@@ -26,9 +30,11 @@ class Blockchain(object):
         RAS_IP = dict_config.get('rasIp')
         # Reminder: we need to sort the mining_nodes to get the desired behaviour
         self.mining_nodes = OrderedSet()
-        self.mining_nodes.add(node_identifier)
+        pub_key = key_pair.public_key().export_key(format='OpenSSH')
+        self.mining_nodes.add(pub_key)
         sorted(self.mining_nodes)
-        self.node_identifier = node_identifier
+        self.mining_nodes = sorted(self.mining_nodes)
+        self.node_identifier = pub_key
         # create genesis block
         genesis = self.new_block(previous_hash=1)
         self.chain.append(genesis)
@@ -45,13 +51,13 @@ class Blockchain(object):
         # TODO: design and implement way to ask for the valid nodes
         # parsed_url = urlparse(address)
         self.mining_nodes.add(node_public_key)
-        sorted(self.mining_nodes)
+        self.mining_nodes = sorted(self.mining_nodes)
 
     def mining_task(self):
         time_in_seconds = int(datetime.now().timestamp())
         time_div = time_in_seconds//TIME_NEW_BLOCK
         # concurrent access to mining nodes by mining task, and add/remove nodes
-        if time_in_seconds % TIME_NEW_BLOCK == 0 and\
+        if self.node_identifier in self.mining_nodes and time_in_seconds % TIME_NEW_BLOCK == 0 and\
                 time_div % len(self.mining_nodes) == self.mining_nodes.index(self.node_identifier):
             # TODO: Create the block correctly
             # self.new_block(time_in_seconds)
@@ -136,23 +142,23 @@ class Blockchain(object):
         :param: patient <str> adress of patient ? or patient id
         :param: operation <str> operation performed to database
         """
-
-        """
-        with self.thread_lock:
-            self.current_transactions.append({
-                'institution': institution,
-                'medic': medic,
-                'patient': patient,
-                'operation': operation,
-            })
-            height_added = self.last_block['index'] + 1
-
-        return height_added
-        """
+        data_dict = json_data.get('data')
         # print("json data is {}".format(json_data))
-        self.current_transactions.append(json_data.get('data'))
-        height_added = self.last_block['index'] + 1
-
+        o_pub_key = data_dict.get('meta_data').get('public_key')
+        try:
+            if o_pub_key not in self.mining_nodes:
+                raise ValueError('No dataop found')
+            recv_public_key = ECC.import_key(self.node_identifier)
+            signed_hash_hex = data_dict.get('meta_data').get('signed_hash')
+            signed_hash = binascii.unhexlify(signed_hash_hex)
+            my_hash = Blockchain.hash_object(data_dict.get('data'))
+            verifier = DSS.new(recv_public_key, 'fips-186-3')
+            verifier.verify(my_hash, signed_hash)
+            self.current_transactions.append(data_dict)
+            height_added = self.last_block['index'] + 1
+        except Exception as e:
+            height_added = -1
+            print("Not valid node or transaction hash, exception {}".format(e))
         return height_added
 
     def valid_chain(self, chain):
@@ -232,7 +238,21 @@ class Blockchain(object):
         # We must make sure that the Dictionary is Ordered,
         #  or we'll have inconsistent hashes
         block_string = json.dumps(block, sort_keys=True).encode()
-        return hashlib.sha256(block_string).hexdigest()
+        return SHA256.new(block_string).hexdigest()
+
+    @staticmethod
+    def hash_object(block):
+        """
+        Creates a SHA-256 hash of a Block
+        :param block: <dict> Block
+        :return: <SHA256 object>
+        """
+
+        # We must make sure that the Dictionary is Ordered,
+        #  or we'll have inconsistent hashes
+        block_string = json.dumps(block, sort_keys=True).encode()
+        return SHA256.new(block_string)
+
 
     @property
     def last_block(self):
@@ -249,6 +269,6 @@ class Blockchain(object):
         """
         # TODO: change it for veryfing tat the node that signs is a valid one, ak for nodes and verify
         guess = f'{last_proof}{proof}{last_hash}'.encode()
-        guess_hash = hashlib.sha256(guess).hexdigest()
+        guess_hash = SHA256.new(guess).hexdigest()
         return guess_hash[:2] == "00"
 
