@@ -30,6 +30,7 @@ class Blockchain(object):
         RAS_IP = dict_config.get('rasIp')
         # Reminder: we need to sort the mining_nodes to get the desired behaviour
         self.mining_nodes = OrderedSet()
+        self.key_pair = key_pair
         pub_key = key_pair.public_key().export_key(format='OpenSSH')
         self.mining_nodes.add(pub_key)
         sorted(self.mining_nodes)
@@ -69,6 +70,7 @@ class Blockchain(object):
         Timer(TIME_SLICE_SECONDS, self.mining_task).start()
 
     def add_block(self, block):
+        # TODO : Verify sign by checking the block data hash and recompute merkle tree and see that it matches
         block = block.get('data')
         self.chain.append(block)
         self.current_transactions = [el for el in self.current_transactions if el not in block.get('transactions')]
@@ -79,8 +81,8 @@ class Blockchain(object):
         listen_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         listen_socket.bind(('', PORT))
         while True:
-            data, addr = listen_socket.recvfrom(4096)
             try:
+                data, addr = listen_socket.recvfrom(65507)
                 data = json.loads(data)
                 data_op = data.get('dataop')
                 if data_op is None:
@@ -94,7 +96,7 @@ class Blockchain(object):
                     raise ValueError('No operation supported')
                 fun(data)
             except Exception as e:
-                print("Packet couldn't be interpreted {}".format(e))
+                print("Packet couldn't be interpreted or overflow {}".format(e))
 
     @staticmethod
     def send_broadcast(message_encoded):
@@ -121,15 +123,29 @@ class Blockchain(object):
         :return: <dict> New Block
         """
         # TODO: SIGN BLOCK AND PUT META DATA WITH PRIVATE_KEY
-        block = {
-            'index': len(self.chain) + 1,
-            'timestamp': block_time,
-            'transactions': self.current_transactions,
-            'previous_hash': previous_hash or self.hash(self.chain[-1]),
-        }
-        # Reset the current list of transactions
+
+        tx_copy = list(self.current_transactions)
         self.current_transactions = []
 
+        block_data = {
+            'merkle_root': Blockchain.merkle_root(tx_copy, 0, len(tx_copy)),
+            'index': len(self.chain) + 1,
+            'timestamp': block_time,
+            'previous_hash': previous_hash or self.hash(self.chain[-1]),
+        }
+        block_hash = Blockchain.hash_object(block_data)
+        signer = DSS.new(self.key_pair, 'deterministic-rfc6979')
+        signature = signer.sign(block_hash)
+        block = {
+            'meta_data': {
+                "public_key": self.node_identifier,
+                "signed_hash": signature.hex()
+            },
+            'block_data': block_data,
+            'transactions': tx_copy
+        }
+        # TODO : test block
+        # Reset the current list of transactions
         return block
 
     def new_transaction(self, json_data):
@@ -152,10 +168,10 @@ class Blockchain(object):
             signed_hash_hex = data_dict.get('meta_data').get('signed_hash')
             signed_hash = binascii.unhexlify(signed_hash_hex)
             my_hash = Blockchain.hash_object(data_dict.get('data'))
-            verifier = DSS.new(recv_public_key, 'fips-186-3')
+            verifier = DSS.new(recv_public_key, 'deterministic-rfc6979')
             verifier.verify(my_hash, signed_hash)
             self.current_transactions.append(data_dict)
-            height_added = self.last_block['index'] + 1
+            height_added = self.last_block['block_data']['index'] + 1
         except Exception as e:
             height_added = -1
             print("Not valid node or transaction hash, exception {}".format(e))
@@ -247,12 +263,26 @@ class Blockchain(object):
         :param block: <dict> Block
         :return: <SHA256 object>
         """
-
         # We must make sure that the Dictionary is Ordered,
         #  or we'll have inconsistent hashes
         block_string = json.dumps(block, sort_keys=True).encode()
         return SHA256.new(block_string)
 
+    @staticmethod
+    def merkle_root(tx_list, a, b):
+        # a is inclusive, b is exclusive
+        if b == a:
+            return ""
+
+        m = (a + b) // 2
+        if a == b-1:
+            # Base case, we have only 1 element
+            return Blockchain.hash(tx_list[a])
+        else:
+            # check if we can sum, both hashes :p or need to use hexdigest
+            return SHA256.new(
+                bytes(Blockchain.merkle_root(tx_list, a, m) +
+                      Blockchain.merkle_root(tx_list, m, b), 'utf-8')).hexdigest()  # this is [a,m) [m,b)
 
     @property
     def last_block(self):

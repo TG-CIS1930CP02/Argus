@@ -1,9 +1,6 @@
 from Crypto.PublicKey import ECC
 from Crypto.Signature import DSS
-from Crypto.Hash import SHA256
 import os.path
-
-import binascii
 
 from flask import Flask, jsonify, request, json
 from Model.blockchain import Blockchain
@@ -11,9 +8,7 @@ from Model.blockchain import Blockchain
 # Instantiate our node
 app = Flask(__name__)
 
-# TODO: create public-private key value
-# Creates an unique address for the node
-
+# creates public-private key value
 if os.path.isfile('mykey.pem'):
     # Import key
     print("File exist")
@@ -88,9 +83,7 @@ def new_transaction():
     data = dict([(x, values[x]) for x in required])
     tx_hash = Blockchain.hash_object(data)
     # Creates new transaction
-    # TODO : Meta data
-    # TODO : encrypt tx_hash
-    signer = DSS.new(key_pair, 'fips-186-3')
+    signer = DSS.new(key_pair, 'deterministic-rfc6979')
     signature = signer.sign(tx_hash)
     transaction = {
         'dataop': 'transaction',
@@ -119,6 +112,3 @@ def full_chain():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
-
-# based on blockchain tutorial on python
-# available at https://github.com/dvf/blockchain/blob/master/blockchain.py
