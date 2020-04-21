@@ -49,7 +49,7 @@ class Blockchain(object):
         Adds a node to list of nodes
         :param node_public_key: <str> Address of new node
         """
-        # TODO: design and implement way to ask for the valid nodes
+        # TODO: ask RAS ip for valid nodes and add them
         # parsed_url = urlparse(address)
         self.mining_nodes.add(node_public_key)
         self.mining_nodes = sorted(self.mining_nodes)
@@ -60,20 +60,35 @@ class Blockchain(object):
         # concurrent access to mining nodes by mining task, and add/remove nodes
         if self.node_identifier in self.mining_nodes and time_in_seconds % TIME_NEW_BLOCK == 0 and\
                 time_div % len(self.mining_nodes) == self.mining_nodes.index(self.node_identifier):
-            # TODO: Create the block correctly
-            # self.new_block(time_in_seconds)
-            Thread(target=Blockchain.send_broadcast,args=[json.dumps({
+            Thread(target=Blockchain.send_broadcast, args=[json.dumps({
                 'dataop': 'block',
                 'data': self.new_block(time_in_seconds)
             }).encode()]).start()
 
         Timer(TIME_SLICE_SECONDS, self.mining_task).start()
 
-    def add_block(self, block):
-        # TODO : Verify sign by checking the block data hash and recompute merkle tree and see that it matches
-        block = block.get('data')
-        self.chain.append(block)
-        self.current_transactions = [el for el in self.current_transactions if el not in block.get('transactions')]
+    def add_block(self, json_block):
+        # TODO : verify all required values are on the Block
+        block = json_block.get('data')
+
+        try:
+            o_pub_key = block.get('meta_data').get('public_key')
+            if o_pub_key not in self.mining_nodes:
+                raise ValueError('No dataop found')
+            recv_public_key = ECC.import_key(o_pub_key)
+            signed_hash_hex = block.get('meta_data').get('signed_hash')
+            signed_hash = binascii.unhexlify(signed_hash_hex)
+            my_block_txs = block.get('transactions')
+            my_merkle_root = Blockchain.merkle_root(my_block_txs, 0, len(my_block_txs))
+            if my_merkle_root != block.get('block_data').get('merkle_root'):
+                raise ValueError("Merkle root is inconsistent")
+            my_hash = Blockchain.hash_object(block.get('block_data'))
+            verifier = DSS.new(recv_public_key, 'deterministic-rfc6979')
+            verifier.verify(my_hash, signed_hash)
+            self.chain.append(block)
+            self.current_transactions = [el for el in self.current_transactions if el not in block.get('transactions')]
+        except Exception as e:
+            print("Not valid block, inconsistent hash, exception {}".format(e))
 
     def listen_broadcast(self):
         listen_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
@@ -122,8 +137,6 @@ class Blockchain(object):
         :param previous_hash: (Optional) <str> Hash of previous Block
         :return: <dict> New Block
         """
-        # TODO: SIGN BLOCK AND PUT META DATA WITH PRIVATE_KEY
-
         tx_copy = list(self.current_transactions)
         self.current_transactions = []
 
@@ -145,7 +158,6 @@ class Blockchain(object):
             'transactions': tx_copy
         }
         # TODO : test block
-        # Reset the current list of transactions
         return block
 
     def new_transaction(self, json_data):
@@ -158,13 +170,14 @@ class Blockchain(object):
         :param: patient <str> adress of patient ? or patient id
         :param: operation <str> operation performed to database
         """
+        # TODO : verify all required values are on the Tx
         data_dict = json_data.get('data')
         # print("json data is {}".format(json_data))
         o_pub_key = data_dict.get('meta_data').get('public_key')
         try:
             if o_pub_key not in self.mining_nodes:
                 raise ValueError('No dataop found')
-            recv_public_key = ECC.import_key(self.node_identifier)
+            recv_public_key = ECC.import_key(o_pub_key)
             signed_hash_hex = data_dict.get('meta_data').get('signed_hash')
             signed_hash = binascii.unhexlify(signed_hash_hex)
             my_hash = Blockchain.hash_object(data_dict.get('data'))
@@ -183,7 +196,7 @@ class Blockchain(object):
         :param chain: <list> this node copy of the blockchain
         :return: <bool> true valid chain, false not
         """
-
+        # TODO : Verify
         last_block = chain[0]
         current_index = 1
 
@@ -270,6 +283,12 @@ class Blockchain(object):
 
     @staticmethod
     def merkle_root(tx_list, a, b):
+        """
+        :param tx_list: [list] tx_list
+        :param a: <int> beginning of list
+        :param b: <int> end of list
+        :return: <str> the root hash of merkle tree
+        """
         # a is inclusive, b is exclusive
         if b == a:
             return ""

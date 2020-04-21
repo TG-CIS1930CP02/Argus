@@ -14,6 +14,7 @@ if os.path.isfile('mykey.pem'):
     print("File exist")
     f = open('mykey.pem', 'rt')
     key_pair = ECC.import_key(f.read())
+    f.close()
 else:
     # Create key pair
     print("File not exist")
@@ -23,6 +24,10 @@ else:
     f.close()
 
 pub_key = key_pair.public_key().export_key(format='OpenSSH')
+f = open('pubkey.pem', 'wt')
+f.write(pub_key)
+f.close()
+
 print("node identified")
 
 # Instantiate the blockchain
