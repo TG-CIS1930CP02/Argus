@@ -1,4 +1,4 @@
 {
-  "rasIp" : "0.0.0.0",
+  "rasIp" : "localhost:3800",
   "broadcastIp" : "192.168.0.255"
 }
