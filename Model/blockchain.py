@@ -6,6 +6,7 @@ from ordered_set import OrderedSet
 from Crypto.PublicKey import ECC
 from Crypto.Signature import DSS
 from Crypto.Hash import SHA256
+import requests
 
 import binascii
 
@@ -28,21 +29,33 @@ class Blockchain(object):
         BROADCAST_IP = dict_config.get('broadcastIp')
         global RAS_IP
         RAS_IP = dict_config.get('rasIp')
-        # Reminder: we need to sort the mining_nodes to get the desired behaviour
-        self.mining_nodes = OrderedSet()
-        self.key_pair = key_pair
         pub_key = key_pair.public_key().export_key(format='OpenSSH')
-        self.mining_nodes.add(pub_key)
-        sorted(self.mining_nodes)
-        self.mining_nodes = sorted(self.mining_nodes)
+        requests.post("http://{}/nodes/register".format(RAS_IP), json={'value': pub_key})
+        # Reminder: we need to sort the mining_nodes to get the desired behaviour
+        # self.mining_nodes = OrderedSet()
+        self.key_pair = key_pair
+        # self.mining_nodes.add(pub_key)
+        # self.mining_nodes = sorted(self.mining_nodes)
         self.node_identifier = pub_key
         # create genesis block
-        genesis = self.new_block(previous_hash=1)
-        self.chain.append(genesis)
+        if len(self.mining_nodes) == 1:
+            genesis = self.new_block(previous_hash=1)
+            self.chain.append(genesis)
+        else:
+            self.chain = requests.get("http://{}/chain".format('192.168.0.23')).content.get('chain')
+
         # start mining process
         print("GOING TO RUN")
         Thread(target=self.mining_task).start()
         Thread(target=self.listen_broadcast).start()
+
+    @property
+    def mining_nodes(self):
+        nodes_list = requests.get("http://{}/nodes".format(RAS_IP))
+        m_set = OrderedSet(nodes_list.content)
+        m_set = sorted(m_set)
+        return m_set
+        # query RAS and return ordered set, sorted
 
     def register_node(self, node_public_key):
         """
