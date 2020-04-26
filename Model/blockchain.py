@@ -6,6 +6,7 @@ from ordered_set import OrderedSet
 from Crypto.PublicKey import ECC
 from Crypto.Signature import DSS
 from Crypto.Hash import SHA256
+from Model.MerkleTree import MerkleTree
 
 import binascii
 
@@ -128,6 +129,7 @@ class Blockchain(object):
         self.current_transactions = []
 
         block_data = {
+            'merklre_tree': MerkleTree(tx_copy),
             'merkle_root': Blockchain.merkle_root(tx_copy, 0, len(tx_copy)),
             'index': len(self.chain) + 1,
             'timestamp': block_time,
@@ -302,3 +304,39 @@ class Blockchain(object):
         guess_hash = SHA256.new(guess).hexdigest()
         return guess_hash[:2] == "00"
 
+    def search_transaction(self, transaction, chain):
+        current_index = 0
+        while current_index < len(chain):
+            block = chain[current_index]
+            for block_transaction in block["transactions"]:
+                if block_transaction == transaction:
+                    return True
+        return False
+
+    def search_sender(self, param,  chain):
+        current_index = 0
+        result = []
+        while current_index < len(chain):
+            block = chain[current_index]
+            for block_transaction in block["transactions"]: 
+                if param == block_transaction["sender"]:
+                    result.append(block_transaction)
+        if len(result) == 0:
+            response =  {'message': f'Transaction not found'}
+            return response
+        else:
+            return result
+
+    def search_recipient(self, param,  chain):
+        current_index = 0
+        result = []
+        while current_index < len(chain):
+            block = chain[current_index]
+            for block_transaction in block["transactions"]: 
+                if param == block_transaction["recipient"]:
+                    result.append(block_transaction)
+        if len(result) == 0:
+            response =  {'message': f'Transaction not found'}
+            return response
+        else:
+            return result

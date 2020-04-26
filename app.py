@@ -109,6 +109,33 @@ def full_chain():
     }
     return jsonify(response), 200
 
+@app.route('/?', methods=['GET'] )
+def search_transaction():
+    search = request.args.get('search')
+    if search == "transaction":
+        transaction = {
+            'sender': request.args.get('sender'),
+            'sender_role': request.args.get('sender_role'),
+            'recipient': request.args.get('recipient'),
+            'recipient_role': request.args.get('recipient_role'),
+            'operation': request.args.get('operation'),
+            'timestamp': request.args.get('timestamp'),
+            'institution': request.args.get('institution'),
+            'resource_path': request.args.get('resource_path'),
+            'resource_integrity': request.args.get('resource_integrity'),
+            'resource_type': request.args.get('resource_type'),
+        }
+        if blockchain.search_transaction(transaction,blockchain.chain) == True:
+            response = {'message': f'Transaction found'}
+        else:
+            response = {'message': f'Transaction not found'}
+    if search == "recipient":
+        recipient = request.args.get('recipient')
+        response = blockchain.search_recipient( recipient,  blockchain.chain)
+    if search == "sender":
+        sender = request.args.get('sender')
+        response = blockchain.search_sender( sender,  blockchain.chain)
+    return jsonify(response), 200
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
