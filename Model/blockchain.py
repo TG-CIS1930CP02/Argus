@@ -50,7 +50,7 @@ class Blockchain(object):
             self.chain.append(genesis)
         else:
             # TODO : generate random number...
-            my_list = self.mining_nodes
+            my_list = self.boot_node_list
             address = my_list[0].get('ip')
             self.chain = json.loads(requests.get("http://{}/chain".format(address)).content).get('chain')
             print("Select random forom boot_node_list and ask him for chain")
