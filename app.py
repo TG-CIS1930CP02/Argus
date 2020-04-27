@@ -1,9 +1,9 @@
 from Crypto.PublicKey import ECC
 from Crypto.Signature import DSS
 import os.path
+from Model.blockchain import Blockchain
 
 from flask import Flask, jsonify, request, json
-from Model.blockchain import Blockchain
 
 # Instantiate our node
 app = Flask(__name__)
@@ -109,9 +109,10 @@ def full_chain():
     }
     return jsonify(response), 200
 
-@app.route('/?', methods=['GET'] )
+@app.route('/search', methods=['GET'] )
 def search_transaction():
     search = request.args.get('search')
+    print(search)
     if search == "transaction":
         transaction = {
             'sender': request.args.get('sender'),
@@ -127,15 +128,22 @@ def search_transaction():
         }
         if blockchain.search_transaction(transaction,blockchain.chain) == True:
             response = {'message': f'Transaction found'}
+            return jsonify(response), 200
         else:
             response = {'message': f'Transaction not found'}
+            return jsonify(response), 404
     if search == "recipient":
         recipient = request.args.get('recipient')
+        print(recipient)
         response = blockchain.search_recipient( recipient,  blockchain.chain)
+        return jsonify(response), 200
     if search == "sender":
         sender = request.args.get('sender')
+        print(sender)
         response = blockchain.search_sender( sender,  blockchain.chain)
-    return jsonify(response), 200
+        return jsonify(response), 200
+    response = {'message': f'Invalid search'}
+    return jsonify(response), 400
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)

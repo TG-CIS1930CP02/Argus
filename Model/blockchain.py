@@ -6,7 +6,6 @@ from ordered_set import OrderedSet
 from Crypto.PublicKey import ECC
 from Crypto.Signature import DSS
 from Crypto.Hash import SHA256
-from Model.MerkleTree import MerkleTree
 
 import binascii
 
@@ -129,7 +128,6 @@ class Blockchain(object):
         self.current_transactions = []
 
         block_data = {
-            'merklre_tree': MerkleTree(tx_copy),
             'merkle_root': Blockchain.merkle_root(tx_copy, 0, len(tx_copy)),
             'index': len(self.chain) + 1,
             'timestamp': block_time,
@@ -311,18 +309,25 @@ class Blockchain(object):
             for block_transaction in block["transactions"]:
                 if block_transaction == transaction:
                     return True
+            current_index += 1
         return False
 
     def search_sender(self, param,  chain):
         current_index = 0
         result = []
+        print("number of nodes:")
+        print(len(chain))
         while current_index < len(chain):
             block = chain[current_index]
+            print("number of transactions: ")
+            print(len(block["transactions"]))
             for block_transaction in block["transactions"]: 
                 if param == block_transaction["sender"]:
+                    print(param)
                     result.append(block_transaction)
+            current_index += 1
         if len(result) == 0:
-            response =  {'message': f'Transaction not found'}
+            response =  {'message': f'Sender transactions  not found'}
             return response
         else:
             return result
@@ -335,8 +340,9 @@ class Blockchain(object):
             for block_transaction in block["transactions"]: 
                 if param == block_transaction["recipient"]:
                     result.append(block_transaction)
+            current_index += 1
         if len(result) == 0:
-            response =  {'message': f'Transaction not found'}
+            response =  {'message': f' Recipient transactions not found'}
             return response
         else:
             return result

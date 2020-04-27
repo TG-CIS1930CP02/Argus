@@ -1,6 +1,6 @@
 import math
 import hashlib
-
+import json
 
 class MerkleNode:
     def __init__(self, node1, node2):
@@ -33,18 +33,34 @@ class MerkleTree:
 
     def create_tree(self, transactions):
         leafs = []
-        for transaction in transactions:
+        if len(transactions) != 0:
+            for transaction in transactions:
+                leafs.append( Leaf(transaction) )
+        else:
+            transaction = {
+            'sender': "genesis",
+            'sender_role': "genesis",
+            'recipient': "genesis",
+            'recipient_role': "genesis",
+            'operation': "genesis",
+            'timestamp': "genesis",
+            'institution': "genesis",
+            'resource_path': "genesis",
+            'resource_integrity': "genesis",
+            'resource_type': "genesis",
+            }
             leafs.append( Leaf(transaction) )
 
         if math.remainder(len(leafs),2) != 0:
             leafs.append(leafs[-1])
-        
+            
         nodes = leafs
         while len(nodes) != 1:
             nodes=self.set_nodes(nodes)
-        
+            
         return nodes[0]
-
+        #Case no transaction when node genesis
+       
     def set_nodes(self, nodes):
         stack = []
         new_nodes = []
@@ -76,3 +92,5 @@ class MerkleTree:
         #   print(node.transaction["patient"])
         return True
 
+    def toJSON(self):
+        return json.dumps(self, default=lambda o: o.__dict__, sort_keys=True, indent=4)
