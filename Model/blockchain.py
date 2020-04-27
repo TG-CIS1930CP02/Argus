@@ -1,6 +1,7 @@
 import json
 from datetime import datetime
 from threading import Timer, Thread
+import time
 import socket
 from ordered_set import OrderedSet
 from Crypto.PublicKey import ECC
@@ -10,12 +11,12 @@ import requests
 
 import binascii
 
-TIME_SLICE_SECONDS = 1.0
+TIME_SLICE_SECONDS = 1
 TIME_NEW_BLOCK = 5
 PORT = 3222
 BROADCAST_IP = None
 RAS_IP = None
-
+SERVICE_PORT = None
 
 class Blockchain(object):
     print("creating class BC")
@@ -29,20 +30,27 @@ class Blockchain(object):
         BROADCAST_IP = dict_config.get('broadcastIp')
         global RAS_IP
         RAS_IP = dict_config.get('rasIp')
+        global SERVICE_PORT
+        SERVICE_PORT = dict_config.get('port')
         pub_key = key_pair.public_key().export_key(format='OpenSSH')
-        requests.post("http://{}/nodes/register".format(RAS_IP), json=pub_key)
-        # Reminder: we need to sort the mining_nodes to get the desired behaviour
-        # self.mining_nodes = OrderedSet()
+        json_post = {'publicKey': pub_key, 'port': SERVICE_PORT}
+        requests.post("http://{}/node".format(RAS_IP), json=json_post)
         self.key_pair = key_pair
-        # self.mining_nodes.add(pub_key)
-        # self.mining_nodes = sorted(self.mining_nodes)
         self.node_identifier = pub_key
+
+        self.boot_node_list = []
+        self.last_update = int(datetime.now().timestamp())
+        self.mining_nodes_list = OrderedSet()
+        self.ask_for_nodes()
+
         # create genesis block
-        if len(self.mining_nodes) == 1:
+        if len(self.mining_nodes) <= 1:
             genesis = self.new_block(previous_hash=1)
             self.chain.append(genesis)
         else:
-            self.chain = requests.get("http://{}/chain".format('192.168.0.20:5000')).content.get('chain')
+            # TODO : generate random number...
+            # self.chain = json.loads(requests.get("http://{}/chain".format('192.168.0.14:5000')).content).get('chain')
+            print("Select random forom boot_node_list and ask him for chain")
 
         # start mining process
         print("GOING TO RUN")
@@ -51,38 +59,36 @@ class Blockchain(object):
 
     @property
     def mining_nodes(self):
-        nodes_list = requests.get("http://{}/nodes".format(RAS_IP))
+        time_in_seconds = int(datetime.now().timestamp())
+        if abs(self.last_update - time_in_seconds) >= 2.5:
+            self.last_update = time_in_seconds
+            Thread(target=self.ask_for_nodes).start()
+
+        return self.mining_nodes_list
+
+    def ask_for_nodes(self):
+        nodes_list = requests.get("http://{}/node".format(RAS_IP))
         nodes_list = json.loads(nodes_list.content)
-        nodes_list = nodes_list.get('nodes')
+        self.boot_node_list = nodes_list
         m_set = OrderedSet()
         for node in nodes_list:
-            m_set.add(node)
+            m_set.add(node.get('publicKey'))
         m_set = sorted(m_set)
-        return m_set
-        # query RAS and return ordered set, sorted
-
-    def register_node(self, node_public_key):
-        """
-        Adds a node to list of nodes
-        :param node_public_key: <str> Address of new node
-        """
-        # TODO: ask RAS ip for valid nodes and add them
-        # parsed_url = urlparse(address)
-        self.mining_nodes.add(node_public_key)
-        self.mining_nodes = sorted(self.mining_nodes)
+        self.mining_nodes_list = m_set
 
     def mining_task(self):
-        time_in_seconds = int(datetime.now().timestamp())
-        time_div = time_in_seconds//TIME_NEW_BLOCK
-        # concurrent access to mining nodes by mining task, and add/remove nodes
-        if self.node_identifier in self.mining_nodes and time_in_seconds % TIME_NEW_BLOCK == 0 and\
-                time_div % len(self.mining_nodes) == self.mining_nodes.index(self.node_identifier):
-            Thread(target=Blockchain.send_broadcast, args=[json.dumps({
-                'dataop': 'block',
-                'data': self.new_block(time_in_seconds)
-            }).encode()]).start()
-
-        Timer(TIME_SLICE_SECONDS, self.mining_task).start()
+        while True:
+            time_in_seconds = int(datetime.now().timestamp())
+            time_div = time_in_seconds//TIME_NEW_BLOCK
+            temp = self.mining_nodes
+            # concurrent access to mining nodes by mining task, and add/remove nodes
+            if self.node_identifier in temp and time_in_seconds % TIME_NEW_BLOCK == 0 and\
+                    time_div % len(temp) == temp.index(self.node_identifier):
+                Thread(target=Blockchain.send_broadcast, args=[json.dumps({
+                    'dataop': 'block',
+                    'data': self.new_block(time_in_seconds)
+                }).encode()]).start()
+            time.sleep(TIME_SLICE_SECONDS)
 
     def add_block(self, json_block):
         # TODO : verify all required values are on the Block

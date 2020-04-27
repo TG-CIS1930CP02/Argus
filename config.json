@@ -1,4 +1,5 @@
 {
-  "rasIp" : "localhost:3800",
-  "broadcastIp" : "192.168.0.255"
+  "rasIp" : "localhost:8092",
+  "broadcastIp" : "192.168.0.255",
+  "port" : 5000
 }
