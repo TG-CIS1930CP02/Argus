@@ -8,6 +8,7 @@ from Crypto.PublicKey import ECC
 from Crypto.Signature import DSS
 from Crypto.Hash import SHA256
 import requests
+import random
 
 import binascii
 
@@ -49,7 +50,9 @@ class Blockchain(object):
             self.chain.append(genesis)
         else:
             # TODO : generate random number...
-            # self.chain = json.loads(requests.get("http://{}/chain".format('192.168.0.14:5000')).content).get('chain')
+            my_list = self.mining_nodes
+            address = my_list[0].get('ip')
+            self.chain = json.loads(requests.get("http://{}/chain".format(address)).content).get('chain')
             print("Select random forom boot_node_list and ask him for chain")
 
         # start mining process
