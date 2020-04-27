@@ -112,35 +112,16 @@ def full_chain():
 @app.route('/search', methods=['GET'] )
 def search_transaction():
     search = request.args.get('search')
+    recipient = request.args.get('recipient')
     print(search)
-    if search == "transaction":
-        transaction = {
-            'sender': request.args.get('sender'),
-            'sender_role': request.args.get('sender_role'),
-            'recipient': request.args.get('recipient'),
-            'recipient_role': request.args.get('recipient_role'),
-            'operation': request.args.get('operation'),
-            'timestamp': request.args.get('timestamp'),
-            'institution': request.args.get('institution'),
-            'resource_path': request.args.get('resource_path'),
-            'resource_integrity': request.args.get('resource_integrity'),
-            'resource_type': request.args.get('resource_type'),
-        }
-        if blockchain.search_transaction(transaction,blockchain.chain) == True:
-            response = {'message': f'Transaction found'}
-            return jsonify(response), 200
-        else:
-            response = {'message': f'Transaction not found'}
-            return jsonify(response), 404
-    if search == "recipient":
-        recipient = request.args.get('recipient')
-        print(recipient)
-        response = blockchain.search_recipient( recipient,  blockchain.chain)
+    if search == "History":
+        response = blockchain.search_history(recipient,blockchain.chain) 
         return jsonify(response), 200
-    if search == "sender":
-        sender = request.args.get('sender')
-        print(sender)
-        response = blockchain.search_sender( sender,  blockchain.chain)
+    if search == "Emergency":
+        response = blockchain.search_emergency(recipient,blockchain.chain) 
+        return jsonify(response), 200
+    if search == "Resources":
+        response = blockchain.search_resources(recipient,  blockchain.chain)
         return jsonify(response), 200
     response = {'message': f'Invalid search'}
     return jsonify(response), 400
