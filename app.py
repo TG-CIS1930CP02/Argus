@@ -113,7 +113,6 @@ def full_chain():
 def search_transaction():
     search = request.args.get('search')
     recipient = request.args.get('recipient')
-    print(search)
     if search == "History":
         response = blockchain.search_history(recipient,blockchain.chain) 
         return jsonify(response), 200

@@ -328,7 +328,7 @@ class Blockchain(object):
                     result.append(block_transaction)
             current_index += 1
         if len(result) == 0:
-            response =  {'message': f' Recipient transactions not found'}
+            response =  {'message': f' Patient transactions not found'}
             return response
         else:
             return result
@@ -352,29 +352,29 @@ class Blockchain(object):
             current_index += 1
 
         if len(result) == 0:
-            response =  {'message': f' Recipient transactions not found'}
+            response =  {'message': f' Patient transactions not found'}
             return response
         else:
             return result
 
     def search_resources(self, patient_id,  chain):
-            """
-            Search for all the creation transactions in a patient history
-            :param: id <str>
-            :param: chain <block>
-            :return: <dict> list of transactions  
-            """
-            current_index = 0
-            result = []
-            while current_index < len(chain):
-                block = chain[current_index]
-                for block_transaction in block["transactions"]: 
-                    if patient_id == block_transaction["recipient"]:
-                        if block_transaction["operation"] == "Creation":
-                            result.append(block_transaction)
-                current_index += 1
-            if len(result) == 0:
-                response =  {'message': f' Recipient transactions not found'}
-                return response
-            else:
-                return result
+        """
+        Search for all the creation transactions in a patient history
+        :param: id <str>
+        :param: chain <block>
+        :return: <dict> list of transactions  
+        """
+        current_index = 0
+        result = []
+        while current_index < len(chain):
+            block = chain[current_index]
+            for block_transaction in block["transactions"]: 
+                if patient_id == block_transaction["recipient"]:
+                    if block_transaction["operation"] == "Creation":
+                        result.append(block_transaction)
+            current_index += 1
+        if len(result) == 0:
+            response =  {'message': f' Patient transactions not found'}
+            return response
+        else:
+            return result
