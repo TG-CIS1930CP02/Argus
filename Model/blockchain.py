@@ -1,20 +1,23 @@
 import json
 from datetime import datetime
 from threading import Timer, Thread
+import time
 import socket
 from ordered_set import OrderedSet
 from Crypto.PublicKey import ECC
 from Crypto.Signature import DSS
 from Crypto.Hash import SHA256
+import requests
+import random
 
 import binascii
 
-TIME_SLICE_SECONDS = 1.0
+TIME_SLICE_SECONDS = 1
 TIME_NEW_BLOCK = 5
 PORT = 3222
 BROADCAST_IP = None
 RAS_IP = None
-
+SERVICE_PORT = None
 
 class Blockchain(object):
     print("creating class BC")
@@ -28,52 +31,90 @@ class Blockchain(object):
         BROADCAST_IP = dict_config.get('broadcastIp')
         global RAS_IP
         RAS_IP = dict_config.get('rasIp')
-        # Reminder: we need to sort the mining_nodes to get the desired behaviour
-        self.mining_nodes = OrderedSet()
-        self.key_pair = key_pair
+        global SERVICE_PORT
+        SERVICE_PORT = dict_config.get('port')
         pub_key = key_pair.public_key().export_key(format='OpenSSH')
-        self.mining_nodes.add(pub_key)
-        sorted(self.mining_nodes)
-        self.mining_nodes = sorted(self.mining_nodes)
+        json_post = {'publicKey': pub_key, 'port': SERVICE_PORT}
+        requests.post("http://{}/node".format(RAS_IP), json=json_post)
+        self.key_pair = key_pair
         self.node_identifier = pub_key
+
+        self.boot_node_list = []
+        self.last_update = int(datetime.now().timestamp())
+        self.mining_nodes_list = OrderedSet()
+        self.ask_for_nodes()
+
         # create genesis block
-        genesis = self.new_block(previous_hash=1)
-        self.chain.append(genesis)
+        if len(self.mining_nodes) <= 1:
+            genesis = self.new_block(previous_hash=1)
+            self.chain.append(genesis)
+        else:
+            # TODO : generate random number...
+            my_list = self.boot_node_list
+            address = my_list[0].get('ip')
+            self.chain = json.loads(requests.get("http://{}/chain".format(address)).content).get('chain')
+            print("Select random forom boot_node_list and ask him for chain")
+
         # start mining process
         print("GOING TO RUN")
         Thread(target=self.mining_task).start()
         Thread(target=self.listen_broadcast).start()
 
-    def register_node(self, node_public_key):
-        """
-        Adds a node to list of nodes
-        :param node_public_key: <str> Address of new node
-        """
-        # TODO: design and implement way to ask for the valid nodes
-        # parsed_url = urlparse(address)
-        self.mining_nodes.add(node_public_key)
-        self.mining_nodes = sorted(self.mining_nodes)
+    @property
+    def mining_nodes(self):
+        time_in_seconds = int(datetime.now().timestamp())
+        if abs(self.last_update - time_in_seconds) >= 2.5:
+            self.last_update = time_in_seconds
+            Thread(target=self.ask_for_nodes).start()
+
+        return self.mining_nodes_list
+
+    def ask_for_nodes(self):
+        nodes_list = requests.get("http://{}/node".format(RAS_IP))
+        nodes_list = json.loads(nodes_list.content)
+        self.boot_node_list = nodes_list
+        m_set = OrderedSet()
+        for node in nodes_list:
+            m_set.add(node.get('publicKey'))
+        m_set = sorted(m_set)
+        self.mining_nodes_list = m_set
 
     def mining_task(self):
-        time_in_seconds = int(datetime.now().timestamp())
-        time_div = time_in_seconds//TIME_NEW_BLOCK
-        # concurrent access to mining nodes by mining task, and add/remove nodes
-        if self.node_identifier in self.mining_nodes and time_in_seconds % TIME_NEW_BLOCK == 0 and\
-                time_div % len(self.mining_nodes) == self.mining_nodes.index(self.node_identifier):
-            # TODO: Create the block correctly
-            # self.new_block(time_in_seconds)
-            Thread(target=Blockchain.send_broadcast,args=[json.dumps({
-                'dataop': 'block',
-                'data': self.new_block(time_in_seconds)
-            }).encode()]).start()
+        while True:
+            time_in_seconds = int(datetime.now().timestamp())
+            time_div = time_in_seconds//TIME_NEW_BLOCK
+            temp = self.mining_nodes
+            # concurrent access to mining nodes by mining task, and add/remove nodes
+            if self.node_identifier in temp and time_in_seconds % TIME_NEW_BLOCK == 0 and\
+                    time_div % len(temp) == temp.index(self.node_identifier):
+                Thread(target=Blockchain.send_broadcast, args=[json.dumps({
+                    'dataop': 'block',
+                    'data': self.new_block(time_in_seconds)
+                }).encode()]).start()
+            time.sleep(TIME_SLICE_SECONDS)
 
-        Timer(TIME_SLICE_SECONDS, self.mining_task).start()
+    def add_block(self, json_block):
+        # TODO : verify all required values are on the Block
+        block = json_block.get('data')
 
-    def add_block(self, block):
-        # TODO : Verify sign by checking the block data hash and recompute merkle tree and see that it matches
-        block = block.get('data')
-        self.chain.append(block)
-        self.current_transactions = [el for el in self.current_transactions if el not in block.get('transactions')]
+        try:
+            o_pub_key = block.get('meta_data').get('public_key')
+            if o_pub_key not in self.mining_nodes:
+                raise ValueError('No dataop found')
+            recv_public_key = ECC.import_key(o_pub_key)
+            signed_hash_hex = block.get('meta_data').get('signed_hash')
+            signed_hash = binascii.unhexlify(signed_hash_hex)
+            my_block_txs = block.get('transactions')
+            my_merkle_root = Blockchain.merkle_root(my_block_txs, 0, len(my_block_txs))
+            if my_merkle_root != block.get('block_data').get('merkle_root'):
+                raise ValueError("Merkle root is inconsistent")
+            my_hash = Blockchain.hash_object(block.get('block_data'))
+            verifier = DSS.new(recv_public_key, 'deterministic-rfc6979')
+            verifier.verify(my_hash, signed_hash)
+            self.chain.append(block)
+            self.current_transactions = [el for el in self.current_transactions if el not in block.get('transactions')]
+        except Exception as e:
+            print("Not valid block, inconsistent hash, exception {}".format(e))
 
     def listen_broadcast(self):
         listen_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
@@ -122,8 +163,6 @@ class Blockchain(object):
         :param previous_hash: (Optional) <str> Hash of previous Block
         :return: <dict> New Block
         """
-        # TODO: SIGN BLOCK AND PUT META DATA WITH PRIVATE_KEY
-
         tx_copy = list(self.current_transactions)
         self.current_transactions = []
 
@@ -145,7 +184,6 @@ class Blockchain(object):
             'transactions': tx_copy
         }
         # TODO : test block
-        # Reset the current list of transactions
         return block
 
     def new_transaction(self, json_data):
@@ -158,13 +196,14 @@ class Blockchain(object):
         :param: patient <str> adress of patient ? or patient id
         :param: operation <str> operation performed to database
         """
+        # TODO : verify all required values are on the Tx
         data_dict = json_data.get('data')
         # print("json data is {}".format(json_data))
         o_pub_key = data_dict.get('meta_data').get('public_key')
         try:
             if o_pub_key not in self.mining_nodes:
                 raise ValueError('No dataop found')
-            recv_public_key = ECC.import_key(self.node_identifier)
+            recv_public_key = ECC.import_key(o_pub_key)
             signed_hash_hex = data_dict.get('meta_data').get('signed_hash')
             signed_hash = binascii.unhexlify(signed_hash_hex)
             my_hash = Blockchain.hash_object(data_dict.get('data'))
@@ -183,7 +222,7 @@ class Blockchain(object):
         :param chain: <list> this node copy of the blockchain
         :return: <bool> true valid chain, false not
         """
-
+        # TODO : Verify
         last_block = chain[0]
         current_index = 1
 
@@ -270,6 +309,12 @@ class Blockchain(object):
 
     @staticmethod
     def merkle_root(tx_list, a, b):
+        """
+        :param tx_list: [list] tx_list
+        :param a: <int> beginning of list
+        :param b: <int> end of list
+        :return: <str> the root hash of merkle tree
+        """
         # a is inclusive, b is exclusive
         if b == a:
             return ""
