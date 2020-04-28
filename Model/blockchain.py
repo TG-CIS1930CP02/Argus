@@ -347,3 +347,94 @@ class Blockchain(object):
         guess_hash = SHA256.new(guess).hexdigest()
         return guess_hash[:2] == "00"
 
+    def search_transaction(self, transaction, chain):
+        """
+        Searches for a given transaction
+        """
+        current_index = 0
+        while current_index < len(chain):
+            block = chain[current_index]
+            for block_transaction in block["transactions"]:
+                if block_transaction == transaction:
+                    return True
+            current_index += 1
+        return False
+
+    def search_history(self, param,  chain):
+        """
+        Search for the medical history of a patient
+        :param: id <str>
+        :param: chain <block>
+        :return: <dict> list of all transactions for a patient
+        """
+        current_index = 0
+        result = []
+        while current_index < len(chain):
+            block = chain[current_index]
+            for block_transaction in block["transactions"]:
+                transaction_data = block_transaction["data"] 
+                if param == transaction_data["recipient"]:
+                    result.append(transaction_data)
+            current_index += 1
+        if len(result) == 0:
+            response =  {'message': f' Patient transactions not found'}
+            return response
+        else:
+            return result
+
+    def search_emergency(self, patient_id,  chain):
+        """
+        Search for the parameters needed in an emergency
+        :param: id <str>
+        :param: chain <block>
+        :return: <dict> list of transactions for emergency 
+        """
+        current_index = 0
+        result = []
+        while current_index < len(chain):
+            block = chain[current_index]
+            for block_transaction in block["transactions"]: 
+                transaction_data = block_transaction["data"]
+                if patient_id == transaction_data["recipient"]:
+                    if transaction_data["operation"] == "Creation":
+                        if transaction_data["resource_type"]== "Alergies" or transaction_data["resource_type"]== "Patient" or transaction_data["resource_type"]== "Condition":
+                            result.append(transaction_data)
+            current_index += 1
+
+        if len(result) == 0:
+            response =  {'message': f' Patient transactions not found'}
+            return response
+        else:
+            return result
+
+    def search_resources(self, patient_id,  chain):
+        """
+        Search for all the creation transactions in a patient history
+        :param: id <str>
+        :param: chain <block>
+        :return: <dict> list of transactions  
+        """
+        print("Inside resoruces")
+        print("patient id:")
+        print(patient_id)
+        current_index = 0
+        result = []
+        while current_index < len(chain):
+            print("inside while")
+            print("bloque:")
+            print(current_index)
+            block = chain[current_index]
+            for block_transaction in block["transactions"]:
+                print("inside for ") 
+                print("trnasactioon: ")
+                transaction_data = block_transaction["data"]
+                print(transaction_data)
+                if patient_id == transaction_data["recipient"]:
+                    if transaction_data["operation"] == "Creation":
+                        result.append(transaction_data)
+            current_index += 1
+        if len(result) == 0:
+            response =  {'message': f' Patient transactions not found'}
+            return response
+        else:
+            return result

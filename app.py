@@ -114,6 +114,24 @@ def full_chain():
     }
     return jsonify(response), 200
 
+@app.route('/search', methods=['GET'] )
+def search_transaction():
+    search = request.args.get('search')
+    recipient = request.args.get('recipient')
+    if search == "History":
+        print("Enter history")
+        response = blockchain.search_history(recipient,blockchain.chain) 
+        return jsonify(response), 200
+    if search == "Emergency":
+        print("Enter ergency")
+        response = blockchain.search_emergency(recipient,blockchain.chain) 
+        return jsonify(response), 200
+    if search == "Resources":
+        print("Enter Resources")
+        response = blockchain.search_resources(recipient,  blockchain.chain)
+        return jsonify(response), 200
+    response = {'message': f'Invalid search'}
+    return jsonify(response), 400
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
