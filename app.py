@@ -76,7 +76,6 @@ def consensus():
 @app.route('/transactions/new', methods=['POST'])
 def new_transaction():
     values = request.get_json()
-
     # Check that the required fields are into the posted data
     # TODO : Create API guide
     required = ['sender', 'sender_role', 'recipient', 'recipient_role', 'operation',
