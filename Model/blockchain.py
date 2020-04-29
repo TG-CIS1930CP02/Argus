@@ -396,8 +396,8 @@ class Blockchain(object):
             for block_transaction in block["transactions"]: 
                 transaction_data = block_transaction["data"]
                 if patient_id == transaction_data["recipient"]:
-                    if transaction_data["operation"] == "Creation":
-                        if transaction_data["resource_type"]== "Alergies" or transaction_data["resource_type"]== "Patient" or transaction_data["resource_type"]== "Condition":
+                    if transaction_data["operation"] == "ADD":
+                        if transaction_data["resource_type"]== "AllergyIntolerance" or transaction_data["resource_type"]== "Patient" or transaction_data["resource_type"]== "Condition":
                             result.append(transaction_data)
             current_index += 1
 
@@ -414,23 +414,14 @@ class Blockchain(object):
         :param: chain <block>
         :return: <dict> list of transactions  
         """
-        print("Inside resoruces")
-        print("patient id:")
-        print(patient_id)
         current_index = 0
         result = []
         while current_index < len(chain):
-            print("inside while")
-            print("bloque:")
-            print(current_index)
             block = chain[current_index]
             for block_transaction in block["transactions"]:
-                print("inside for ") 
-                print("trnasactioon: ")
                 transaction_data = block_transaction["data"]
-                print(transaction_data)
                 if patient_id == transaction_data["recipient"]:
-                    if transaction_data["operation"] == "Creation":
+                    if transaction_data["operation"] == "ADD":
                         result.append(transaction_data)
             current_index += 1
         if len(result) == 0:
