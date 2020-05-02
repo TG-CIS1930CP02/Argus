@@ -397,7 +397,7 @@ class Blockchain(object):
                 transaction_data = block_transaction["data"]
                 if patient_id == transaction_data["recipient"]:
                     if transaction_data["operation"] == "ADD":
-                        if transaction_data["resource_type"]== "AllergyIntolerance" or transaction_data["resource_type"]== "Patient" or transaction_data["resource_type"]== "Condition":
+                        if transaction_data["resourceType"]== "AllergyIntolerance" or transaction_data["resourceType"]== "Patient" or transaction_data["resourceType"]== "Condition":
                             result.append(transaction_data)
             current_index += 1
 
