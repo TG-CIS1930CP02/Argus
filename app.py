@@ -79,7 +79,7 @@ def new_transaction():
     # Check that the required fields are into the posted data
     # TODO : Create API guide
     required = ['sender', 'senderRole', 'recipient', 'recipientRole', 'operation',
-                'timestamp', 'institution', 'resourcePath', 'resourceIntegrity', 'resourceType']
+                'timestamp', 'institution', 'resourcePath', 'resourceIntegrity', 'resourceType', 'resourceId']
     required = sorted(required)
     if not all(k in values for k in required):
         return 'Missing values', 400
