@@ -122,7 +122,7 @@ def search_transaction():
         response = blockchain.search_history(recipient,blockchain.chain) 
         return jsonify(response), 200
     if search == "Emergency":
-        print("Enter ergency")
+        print("Enter emergency")
         response = blockchain.search_emergency(recipient,blockchain.chain) 
         return jsonify(response), 200
     if search == "Resources":
